@@ -1,0 +1,2 @@
+.cache/factscore/retrieval-enwiki-20230401.json filter=lfs diff=lfs merge=lfs -text
+.cache/factscore/ChatGPT.pkl filter=lfs diff=lfs merge=lfs -text
