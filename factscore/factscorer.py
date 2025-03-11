@@ -89,17 +89,15 @@ class FactScorer(object):
         total_tokens = total_words * 4.0 / 3
 
         # https://openai.com/pricing
-        # if we use davinci-003, the cost is $0.02 per 1000 tokens
+        # if we use gpt-4o-mini, the cost is $0.02 per 1000 tokens
         # if we use gpt-3.5-turbo, the cost is $0.002 per 1000 tokens
-        if model == "davinci-003":
-            rate = 0.02
-        elif model == "gpt-3.5-turbo":
-            rate = 0.002
+        if model == "gpt-4o-mini":
+            rate = 0.0006
 
         total_cost = total_tokens * rate / 1000
 
         # print the total words, tokens, and cost along with rate
-        logging.critical("Estimated OpenAI API cost for %s ($%.3f per 1000 tokens): $%.2f for %d words and %d tokens" % (task, rate, total_cost, total_words, total_tokens))
+        logging.critical("Estimated OpenAI API cost for %s ($%.4f per 1000 tokens): $%.2f for %d words and %d tokens" % (task, rate, total_cost, total_words, total_tokens))
 
     def get_score(self,
                   topics,
@@ -128,34 +126,39 @@ class FactScorer(object):
             if self.af_generator is None:
                 self.af_generator = AtomicFactGenerator(key_path=self.openai_key,
                                                         demon_dir=os.path.join(self.data_dir, "demos"),
-                                                        gpt3_cache_file=os.path.join(self.cache_dir, "InstructGPT.pkl"))
+                                                        gpt3_cache_file=os.path.join(self.cache_dir, "ChatGPT.pkl"))
 
             # estimate the total cost of atomic fact generation
             total_words = 0
             for gen in generations:
                 total_words += self.af_generator.run(gen, cost_estimate=self.cost_estimate)
 
-            self.print_cost_estimates(total_words, task="atomic fact generation", model="davinci-003")
+            self.print_cost_estimates(total_words, task="atomic fact generation", model="gpt-4o-mini")
 
             if verbose:
                 topics = tqdm(topics)
 
             atomic_facts = []
             for topic, gen in zip(topics, generations):
-                # optionally, first detect if the response is abstained
-                response_abstained = is_response_abstained(gen, self.abstain_detection_type)
-                if response_abstained:
-                    atomic_facts.append(None)
-                    continue
-                # continue only when the response is not abstained
-                curr_afs, _ = self.af_generator.run(gen)
-                curr_afs = [fact for _, facts in curr_afs for fact in facts]
-                if len(curr_afs)==0:
-                    atomic_facts.append(None)
-                else:
-                    atomic_facts.append(curr_afs)
-                if len(atomic_facts) % 10 == 0:
+                try:
+                    # optionally, first detect if the response is abstained
+                    response_abstained = is_response_abstained(gen, self.abstain_detection_type)
+                    if response_abstained:
+                        atomic_facts.append(None)
+                        continue
+                    # continue only when the response is not abstained
+                    curr_afs, _ = self.af_generator.run(gen)
+                    curr_afs = [fact for _, facts in curr_afs for fact in facts]
+                    if len(curr_afs)==0:
+                        atomic_facts.append(None)
+                    else:
+                        atomic_facts.append(curr_afs)
+                    # if len(atomic_facts) % 2 == 0:
                     self.af_generator.save_cache()
+                except:
+                    print(topic, gen)
+                    exit()
+                    
 
             assert len(atomic_facts)==len(topics)
             self.af_generator.save_cache()
@@ -169,15 +172,18 @@ class FactScorer(object):
                 if facts is not None:
                     total_words += self._get_score(topic, generation, facts, knowledge_source, cost_estimate=self.cost_estimate)
 
-            self.print_cost_estimates(total_words, task="factscore evaluation", model="gpt-3.5-turbo")
+            self.print_cost_estimates(total_words, task="factscore evaluation", model="gpt-4o-mini")
 
         if verbose:
-            topics = tqdm(topics)
+            # topics = tqdm(topics)
+            # Your existing code with modifications for real-time updates
+            topics_iterator = tqdm(zip(topics, generations, atomic_facts), total=len(topics), desc="Processing topics")
 
         scores = []
         init_scores = []
         decisions = []
-        for topic, generation, facts in zip(topics, generations, atomic_facts):
+        # for topic, generation, facts in zip(topics, generations, atomic_facts):
+        for topic, generation, facts in topics_iterator:
             if facts is None:
                 decisions.append(None)
             else:
@@ -191,8 +197,12 @@ class FactScorer(object):
                 
                 decisions.append(decision)
                 scores.append(score)
-                if len(scores) % 10 == 0:
-                    self.save_cache()
+                
+                # Update the progress bar description with current stats
+                topics_iterator.set_postfix(current_score=f"{score:.3f}", avg_score=f"{np.mean(scores):.3f}")
+        
+                # if len(scores) % 2 == 0:
+                self.save_cache()
 
         self.save_cache()
 
@@ -228,8 +238,11 @@ class FactScorer(object):
                     elif cost_estimate == "ignore_cache":
                         total_words += len(prompt.split())
                     continue
-
-                output = self.lm.generate(prompt)
+                try:
+                    output = self.lm.generate(prompt)
+                except:
+                    print(prompt)
+                    exit()
 
                 if type(output[1])==np.ndarray:
                     # when logits are available
@@ -270,7 +283,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_path',
                         type=str,
-                        default="data/labeled/InstructGPT.jsonl")
+                        default="/home/liyanhao/FActScore/data/unlabeled/DeepSeek-R1-demo.jsonl")
     parser.add_argument('--model_name',
                         type=str,
                         default="retrieval+ChatGPT")
@@ -281,7 +294,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--openai_key',
                         type=str,
-                        default="api.key")
+                        default="/home/liyanhao/FActScore/openai_key.txt")
     parser.add_argument('--data_dir',
                         type=str,
                         default=".cache/factscore/")
@@ -348,6 +361,7 @@ if __name__ == '__main__':
                 generations.append(dp["output"])
             if args.n_samples is not None and tot==args.n_samples:
                 break
+    print("total nums:", tot)
     out = fs.get_score(topics=topics,
                        generations=generations,
                        gamma=args.gamma,

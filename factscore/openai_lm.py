@@ -39,27 +39,22 @@ class OpenAIModel(LM):
             # Get the output from the response
             output = response["choices"][0]["message"]["content"]
             return output, response
-        elif self.model_name == "InstructGPT":
-            # Call API
-            response = call_GPT3(prompt, temp=self.temp)
-            # Get the output from the response
-            output = response["choices"][0]["text"]
-            return output, response
         else:
             raise NotImplementedError()
 
 # gpt-3.5-turbo
-def call_ChatGPT(message, model_name="gpt-4o", max_len=1024, temp=0.7, verbose=False):
+def call_ChatGPT(message, model_name="gpt-4o-mini", max_len=2048, temp=0.7, verbose=False):
     # call GPT-3 API until result is provided and then return it
     response = None
     received = False
     num_rate_errors = 0
     while not received:
         try:
-            response = openai.ChatCompletion.create(model="gpt-4o",
+            response = openai.ChatCompletion.create(model=model_name,
                                                     messages=message,
                                                     max_tokens=max_len,
                                                     temperature=temp)
+            # print(response['model'])
             received = True
         except:
             # print(message)
@@ -71,31 +66,5 @@ def call_ChatGPT(message, model_name="gpt-4o", max_len=1024, temp=0.7, verbose=F
                 assert False
             
             logging.error("API error: %s (%d). Waiting %dsec" % (error, num_rate_errors, np.power(2, num_rate_errors)))
-            time.sleep(np.power(2, num_rate_errors))
-    return response
-
-
-def call_GPT3(prompt, model_name="text-davinci-003", max_len=512, temp=0.7, num_log_probs=0, echo=False, verbose=False):
-    # call GPT-3 API until result is provided and then return it
-    response = None
-    received = False
-    num_rate_errors = 0
-    while not received:
-        try:
-            response = openai.Completion.create(model=model_name,
-                                                prompt=prompt,
-                                                max_tokens=max_len,
-                                                temperature=temp,
-                                                logprobs=num_log_probs,
-                                                echo=echo)
-            received = True
-        except:
-            error = sys.exc_info()[0]
-            num_rate_errors += 1
-            if error == openai.error.InvalidRequestError:
-                # something is wrong: e.g. prompt too long
-                logging.critical(f"InvalidRequestError\nPrompt passed in:\n\n{prompt}\n\n")
-                assert False
-            logging.error("API error: %s (%d)" % (error, num_rate_errors))
             time.sleep(np.power(2, num_rate_errors))
     return response

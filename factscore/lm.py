@@ -14,7 +14,7 @@ class LM(object):
         # load the model and put it as self.model
         raise NotImplementedError()
 
-    def generate(self, prompt, sample_idx=0, max_sequence_length=2048, max_output_length=128):
+    def generate(self, prompt, sample_idx=0, max_sequence_length=4096, max_output_length=128):
         prompt = prompt.strip() # it's important not to end with a whitespace
         cache_key = f"{prompt}_{sample_idx}"
 
