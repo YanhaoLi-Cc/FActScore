@@ -27,7 +27,7 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 .tox/
 .coverage
-.cache
+# .cache
 nosetests.xml
 coverage.xml
 
@@ -49,22 +49,24 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
-demos
+# demos
 original_generation
 enwiki-20230401.db
 api.key
 editing-data
 editing-demos
-data
+# data
 model
 
 llama-7B
 inst-llama-7B
 inst-llama-7B.zip
 
-.cache
+# .cache
 fs-venv
 
 poetry.lock
 
 acl-publication-info.74k.parquet
+
+openai_key.txt
